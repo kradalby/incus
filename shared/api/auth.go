@@ -6,4 +6,7 @@ const (
 
 	// AuthenticationMethodOIDC is a token based authentication method.
 	AuthenticationMethodOIDC = "oidc"
+
+	// AuthenticationMethodTailscale identifies callers by their Tailscale identity.
+	AuthenticationMethodTailscale = "tailscale"
 )

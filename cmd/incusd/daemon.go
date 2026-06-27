@@ -120,6 +120,8 @@ type Daemon struct {
 
 	oidcVerifier *oidc.Verifier
 
+	tailscaleVerifier *auth.TailscaleVerifier
+
 	// Stores last heartbeat node information to detect node changes.
 	lastNodeList *cluster.APIHeartbeat
 
@@ -583,6 +585,16 @@ func (d *Daemon) Authenticate(w http.ResponseWriter, r *http.Request) (bool, str
 		trusted, username := localUtil.CheckTrustState(*i, trustedCerts[certificate.TypeClient], d.endpoints.NetworkCert(), trustCACertificates)
 		if trusted {
 			return true, username, api.AuthenticationMethodTLS, nil
+		}
+	}
+
+	// Validate Tailscale identity, resolved via the local tailscaled daemon.
+	// WhoIs fails closed for any address that is not a known Tailscale peer, so
+	// non-tailnet callers simply fall through to the rejection below.
+	if d.tailscaleVerifier != nil {
+		username, err := d.tailscaleVerifier.Identity(r.Context(), r.RemoteAddr)
+		if err == nil && username != "" {
+			return true, username, api.AuthenticationMethodTailscale, nil
 		}
 	}
 
@@ -1373,6 +1385,7 @@ func (d *Daemon) init() error {
 	openfgaAPIURL, openfgaAPIToken, openfgaStoreID := d.globalConfig.OpenFGA()
 	instancePlacementScriptlet := d.globalConfig.InstancesPlacementScriptlet()
 	authorizationScriptlet := d.globalConfig.AuthorizationScriptlet()
+	tailscaleEnabled, tailscaleCapName := d.globalConfig.Tailscale()
 
 	d.endpoints.NetworkUpdateTrustedProxy(d.globalConfig.HTTPSTrustedProxy())
 	ws.SetTrustedOrigins(d.globalConfig.HTTPSAllowedWebsocketOrigin())
@@ -1413,6 +1426,16 @@ func (d *Daemon) init() error {
 		err = d.setupAuthorizationScriptlet(authorizationScriptlet)
 		if err != nil {
 			return err
+		}
+	}
+
+	// Setup Tailscale authentication and grant-based authorization. This installs
+	// both the identity verifier and the grant authorizer together, so Tailscale
+	// identity is never enabled without a grant-aware authorizer to evaluate it.
+	if tailscaleEnabled {
+		err = d.setupTailscaleAuth(tailscaleCapName)
+		if err != nil {
+			return fmt.Errorf("Failed to configure Tailscale authentication: %w", err)
 		}
 	}
 
@@ -2176,6 +2199,23 @@ func (d *Daemon) setupOpenFGA(apiURL string, apiToken string, storeID string) er
 	d.authorizer = openfgaAuthorizer
 
 	reverter.Success()
+	return nil
+}
+
+// Setup Tailscale authentication and grant-based authorization.
+func (d *Daemon) setupTailscaleAuth(capName string) error {
+	verifier, err := auth.NewTailscaleVerifier()
+	if err != nil {
+		return fmt.Errorf("Failed to setup Tailscale verifier: %w", err)
+	}
+
+	authorizer, err := auth.LoadAuthorizer(d.shutdownCtx, auth.DriverTailscale, logger.Log, d.clientCerts, auth.WithConfig(map[string]any{"tailscale.cap_name": capName}))
+	if err != nil {
+		return err
+	}
+
+	d.tailscaleVerifier = verifier
+	d.authorizer = authorizer
 	return nil
 }
 

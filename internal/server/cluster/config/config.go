@@ -326,6 +326,12 @@ func (c *Config) OIDCServer() (string, string, string, string, string) {
 	return c.m.GetString("oidc.issuer"), c.m.GetString("oidc.client.id"), c.m.GetString("oidc.scopes"), c.m.GetString("oidc.audience"), c.m.GetString("oidc.claim")
 }
 
+// Tailscale returns whether Tailscale authentication is enabled and the grant
+// capability name to read Incus permissions from.
+func (c *Config) Tailscale() (bool, string) {
+	return c.m.GetBool("tailscale.enabled"), c.m.GetString("tailscale.cap_name")
+}
+
 // ClusterHealingThreshold returns the configured healing threshold, i.e. the
 // number of seconds after which an offline node will be evacuated automatically. If the config key
 // is set but its value is lower than cluster.offline_threshold it returns
@@ -1048,6 +1054,24 @@ var ConfigSchema = config.Schema{
 	//  scope: global
 	//  shortdesc: OpenID Connect claim to use as the username
 	"oidc.claim": {},
+
+	// gendoc:generate(entity=server, group=tailscale, key=tailscale.enabled)
+	//
+	// ---
+	//  type: bool
+	//  scope: global
+	//  defaultdesc: `false`
+	//  shortdesc: Whether to authenticate callers by their Tailscale identity
+	"tailscale.enabled": {Type: config.Bool, Default: "false"},
+
+	// gendoc:generate(entity=server, group=tailscale, key=tailscale.cap_name)
+	//
+	// ---
+	//  type: string
+	//  scope: global
+	//  defaultdesc: `incus.com/cap/incus`
+	//  shortdesc: Tailscale grant capability name to read Incus permissions from
+	"tailscale.cap_name": {Default: "incus.com/cap/incus"},
 
 	// OVN networking global keys.
 
