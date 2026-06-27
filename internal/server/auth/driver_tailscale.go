@@ -8,11 +8,18 @@ import (
 	"strings"
 
 	"tailscale.com/client/local"
+	"tailscale.com/client/tailscale/apitype"
 	"tailscale.com/tailcfg"
 
 	"github.com/lxc/incus/v7/internal/server/certificate"
 	"github.com/lxc/incus/v7/shared/api"
 )
+
+// tsWhoIser resolves the Tailscale identity of a remote address. *local.Client
+// satisfies it against the local tailscaled daemon; tests substitute a fake.
+type tsWhoIser interface {
+	WhoIs(ctx context.Context, remoteAddr string) (*apitype.WhoIsResponse, error)
+}
 
 // tailscaleDefaultCapName is the default Tailscale grant capability name that
 // Incus reads permissions from. Override with the "tailscale.cap_name" key.
@@ -68,7 +75,7 @@ type Tailscale struct {
 	commonAuthorizer
 	tls *TLS
 
-	client  *local.Client
+	client  tsWhoIser
 	capName tailcfg.PeerCapability
 }
 
@@ -79,16 +86,22 @@ func (t *Tailscale) load(ctx context.Context, certificateCache *certificate.Cach
 		return err
 	}
 
+	socket := ""
 	t.capName = tailcfg.PeerCapability(tailscaleDefaultCapName)
 	if opts.config != nil {
 		v, ok := opts.config["tailscale.cap_name"].(string)
 		if ok && v != "" {
 			t.capName = tailcfg.PeerCapability(v)
 		}
+
+		v, ok = opts.config["tailscale.socket"].(string)
+		if ok {
+			socket = v
+		}
 	}
 
-	// Zero-value client talks to the local tailscaled socket.
-	t.client = &local.Client{}
+	// An empty socket path uses the default local tailscaled socket.
+	t.client = &local.Client{Socket: socket}
 	return nil
 }
 
@@ -190,12 +203,13 @@ func (t *Tailscale) GetProjectAccess(ctx context.Context, projectName string) (*
 // TailscaleVerifier resolves the Tailscale identity of an inbound connection
 // using the local tailscaled daemon.
 type TailscaleVerifier struct {
-	client *local.Client
+	client tsWhoIser
 }
 
 // NewTailscaleVerifier returns a verifier backed by the local tailscaled socket.
-func NewTailscaleVerifier() (*TailscaleVerifier, error) {
-	return &TailscaleVerifier{client: &local.Client{}}, nil
+// An empty socket path uses the default local tailscaled socket.
+func NewTailscaleVerifier(socket string) (*TailscaleVerifier, error) {
+	return &TailscaleVerifier{client: &local.Client{Socket: socket}}, nil
 }
 
 // Identity returns a stable identity string for the caller at remoteAddr, or an

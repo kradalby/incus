@@ -326,10 +326,11 @@ func (c *Config) OIDCServer() (string, string, string, string, string) {
 	return c.m.GetString("oidc.issuer"), c.m.GetString("oidc.client.id"), c.m.GetString("oidc.scopes"), c.m.GetString("oidc.audience"), c.m.GetString("oidc.claim")
 }
 
-// Tailscale returns whether Tailscale authentication is enabled and the grant
-// capability name to read Incus permissions from.
-func (c *Config) Tailscale() (bool, string) {
-	return c.m.GetBool("tailscale.enabled"), c.m.GetString("tailscale.cap_name")
+// Tailscale returns whether Tailscale authentication is enabled, the grant
+// capability name to read Incus permissions from, and an optional override for
+// the local tailscaled socket path.
+func (c *Config) Tailscale() (bool, string, string) {
+	return c.m.GetBool("tailscale.enabled"), c.m.GetString("tailscale.cap_name"), c.m.GetString("tailscale.socket")
 }
 
 // ClusterHealingThreshold returns the configured healing threshold, i.e. the
@@ -1072,6 +1073,14 @@ var ConfigSchema = config.Schema{
 	//  defaultdesc: `incus.com/cap/incus`
 	//  shortdesc: Tailscale grant capability name to read Incus permissions from
 	"tailscale.cap_name": {Default: "incus.com/cap/incus"},
+
+	// gendoc:generate(entity=server, group=tailscale, key=tailscale.socket)
+	//
+	// ---
+	//  type: string
+	//  scope: global
+	//  shortdesc: Path to the local tailscaled socket (empty uses the default)
+	"tailscale.socket": {},
 
 	// OVN networking global keys.
 

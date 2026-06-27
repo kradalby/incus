@@ -1385,7 +1385,7 @@ func (d *Daemon) init() error {
 	openfgaAPIURL, openfgaAPIToken, openfgaStoreID := d.globalConfig.OpenFGA()
 	instancePlacementScriptlet := d.globalConfig.InstancesPlacementScriptlet()
 	authorizationScriptlet := d.globalConfig.AuthorizationScriptlet()
-	tailscaleEnabled, tailscaleCapName := d.globalConfig.Tailscale()
+	tailscaleEnabled, tailscaleCapName, tailscaleSocket := d.globalConfig.Tailscale()
 
 	d.endpoints.NetworkUpdateTrustedProxy(d.globalConfig.HTTPSTrustedProxy())
 	ws.SetTrustedOrigins(d.globalConfig.HTTPSAllowedWebsocketOrigin())
@@ -1433,7 +1433,7 @@ func (d *Daemon) init() error {
 	// both the identity verifier and the grant authorizer together, so Tailscale
 	// identity is never enabled without a grant-aware authorizer to evaluate it.
 	if tailscaleEnabled {
-		err = d.setupTailscaleAuth(tailscaleCapName)
+		err = d.setupTailscaleAuth(tailscaleCapName, tailscaleSocket)
 		if err != nil {
 			return fmt.Errorf("Failed to configure Tailscale authentication: %w", err)
 		}
