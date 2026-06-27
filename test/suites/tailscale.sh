@@ -24,9 +24,14 @@ test_tailscale() {
     # on the node's Tailscale IP so a caller's source address is a tailnet IP that
     # WhoIs can resolve. Enabling tailscale.enabled also installs the grant
     # authorizer (the verifier and authorizer are wired together).
-    incus config set tailscale.socket "${TEST_DIR}/tailscale/tailscaled.sock"
-    incus config set tailscale.enabled true
-    incus config set core.https_address "${TS_IP}:8443"
+    incus config set tailscale.socket="${TEST_DIR}/tailscale/tailscaled.sock"
+    incus config set tailscale.enabled=true
+    incus config set core.https_address="${TS_IP}:8443"
+
+    # Tailscale authentication is wired during daemon start, so restart to
+    # activate it (grant policy changes below take effect live without a restart).
+    shutdown_incus "${INCUS_DIR}"
+    respawn_incus "${INCUS_DIR}" true
 
     # Use a throwaway client config so the connection presents an untrusted
     # certificate and is therefore authenticated purely by Tailscale identity
@@ -36,22 +41,22 @@ test_tailscale() {
     export INCUS_CONF="${TS_CONF}"
 
     incus remote add tsincus "https://${TS_IP}:8443" --accept-certificate
+    incus info tsincus: | grep -q "auth: trusted"
 
-    # The admin grant allows reading and creating instances.
+    # The admin grant allows reading and creating projects.
     echo "==> admin grant: read and create allowed"
-    incus list tsincus: > /dev/null
-    incus init testimage tsincus:c1 > /dev/null
-    incus delete tsincus:c1 > /dev/null
+    incus project list tsincus: > /dev/null
+    incus project create tsincus:e2e-admin > /dev/null
 
     # Downgrade the grant to viewer; database policy mode applies it live, and the
     # node receives the updated map over its control connection.
     headscale_set_policy viewer
-    sleep 2
+    sleep 3
 
-    # The viewer grant allows reading but denies creating instances.
+    # The viewer grant allows reading but denies creating projects.
     echo "==> viewer grant: read allowed, create denied"
-    incus list tsincus: > /dev/null
-    ! incus init testimage tsincus:c2 > /dev/null 2>&1
+    incus project list tsincus: > /dev/null
+    ! incus project create tsincus:e2e-viewer > /dev/null 2>&1
 
     # Restore the original client config and clean up.
     export INCUS_CONF="${INCUS_CONF_SAVED}"

@@ -2203,13 +2203,13 @@ func (d *Daemon) setupOpenFGA(apiURL string, apiToken string, storeID string) er
 }
 
 // Setup Tailscale authentication and grant-based authorization.
-func (d *Daemon) setupTailscaleAuth(capName string) error {
-	verifier, err := auth.NewTailscaleVerifier()
+func (d *Daemon) setupTailscaleAuth(capName string, socket string) error {
+	verifier, err := auth.NewTailscaleVerifier(socket)
 	if err != nil {
 		return fmt.Errorf("Failed to setup Tailscale verifier: %w", err)
 	}
 
-	authorizer, err := auth.LoadAuthorizer(d.shutdownCtx, auth.DriverTailscale, logger.Log, d.clientCerts, auth.WithConfig(map[string]any{"tailscale.cap_name": capName}))
+	authorizer, err := auth.LoadAuthorizer(d.shutdownCtx, auth.DriverTailscale, logger.Log, d.clientCerts, auth.WithConfig(map[string]any{"tailscale.cap_name": capName, "tailscale.socket": socket}))
 	if err != nil {
 		return err
 	}

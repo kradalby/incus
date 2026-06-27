@@ -126,7 +126,7 @@ spawn_tailscaled() {
 
 # tailscale_up <authkey> joins the node to headscale.
 tailscale_up() {
-    ts up --reset \
+    ts up --reset --timeout=60s \
         --login-server="$(headscale_url)" \
         --authkey="${1}" \
         --hostname=incus-server \
